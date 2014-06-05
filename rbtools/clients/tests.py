@@ -928,37 +928,16 @@ class MercurialClientTests(MercurialTestBase):
         self.assertEqual(commit_message['description'], 'desc2')
 
 
-class MercurialSubversionClientTests(MercurialTestBase):
-    TESTSERVER = "http://127.0.0.1:8080"
-
-    def __init__(self, *args, **kwargs):
-        self._tmpbase = ''
-        self.clone_dir = ''
+class SvnWrapperMixin(object):
+    def __init__(self):
         self.svn_repo = ''
         self.svn_checkout = ''
-        self.client = None
         self._svnserve_pid = 0
         self._max_svnserve_pid_tries = 12
         self._svnserve_port = os.environ.get('SVNSERVE_PORT')
         self._required_exes = ('svnadmin', 'svnserve', 'svn')
-        MercurialTestBase.__init__(self, *args, **kwargs)
 
     def setUp(self):
-        super(MercurialSubversionClientTests, self).setUp()
-        self._hg_env = {'FOO': 'BAR'}
-
-        # Make sure hgsubversion is enabled.
-        #
-        # This will modify the .hgrc in the temp home directory created
-        # for these tests.
-        #
-        # The "hgsubversion =" tells Mercurial to check for hgsubversion
-        # in the default PYTHONPATH.
-        fp = open('%s/.hgrc' % os.environ['HOME'], 'w')
-        fp.write('[extensions]\n')
-        fp.write('hgsubversion =\n')
-        fp.close()
-
         for exe in self._required_exes:
             if not is_exe_in_path(exe):
                 raise SkipTest('missing svn stuff!  giving up!')
@@ -1061,8 +1040,7 @@ class MercurialSubversionClientTests(MercurialTestBase):
     def _stub_in_config_and_options(self):
         self.options.parent_branch = None
 
-    def testGetRepositoryInfoSimple(self):
-        """Testing MercurialClient (+svn) get_repository_info, simple case"""
+    def _testGetRepositoryInfoSimple(self):
         ri = self.client.get_repository_info()
 
         self.assertEqual('svn', self.client._type)
@@ -1087,15 +1065,13 @@ class MercurialSubversionClientTests(MercurialTestBase):
         self.assertEqual(repo_info.path, "svn+ssh://svn.example.net/repo")
         self.assertEqual(repo_info.base_path, "/trunk")
 
-    def testScanForServerSimple(self):
-        """Testing MercurialClient (+svn) scan_for_server, simple case"""
+    def _testScanForServerSimple(self):
         ri = self.client.get_repository_info()
         server = self.client.scan_for_server(ri)
 
         self.assertTrue(server is None)
 
-    def testScanForServerReviewboardrc(self):
-        """Testing MercurialClient (+svn) scan_for_server in .reviewboardrc"""
+    def _testScanForServerReviewboardrc(self):
         rc_filename = os.path.join(self.clone_dir, '.reviewboardrc')
         rc = open(rc_filename, 'w')
         rc.write('REVIEWBOARD_URL = "%s"' % self.TESTSERVER)
@@ -1107,8 +1083,7 @@ class MercurialSubversionClientTests(MercurialTestBase):
 
         self.assertEqual(self.TESTSERVER, server)
 
-    def testScanForServerProperty(self):
-        """Testing MercurialClient (+svn) scan_for_server in svn property"""
+    def _testScanForServerProperty(self, update):
         os.chdir(self.svn_checkout)
         execute(['svn', 'update'])
         execute(['svn', 'propset', 'reviewboard:url', self.TESTSERVER,
@@ -1116,58 +1091,52 @@ class MercurialSubversionClientTests(MercurialTestBase):
         execute(['svn', 'commit', '-m', 'adding reviewboard:url property'])
 
         os.chdir(self.clone_dir)
-        self._run_hg(['pull'])
-        self._run_hg(['update', '-C'])
+        update()
 
         ri = self.client.get_repository_info()
 
         self.assertEqual(self.TESTSERVER, self.client.scan_for_server(ri))
 
-    def testDiffSimple(self):
-        """Testing MercurialClient (+svn) diff, simple case"""
+    def _testDiffSimple(self, do_commit, expected_diff_hash):
         self.client.get_repository_info()
 
-        self._hg_add_file_commit('foo.txt', FOO4, 'edit 4')
+        do_commit('foo.txt', FOO4, 'edit 4')
 
         revisions = self.client.parse_revision_spec([])
         result = self.client.diff(revisions)
         self.assertTrue(isinstance(result, dict))
         self.assertTrue('diff' in result)
         self.assertEqual(md5(result['diff']).hexdigest(),
-                         '2eb0a5f2149232c43a1745d90949fcd5')
+                         expected_diff_hash)
         self.assertEqual(result['parent_diff'], None)
 
-    def testDiffSimpleMultiple(self):
-        """Testing MercurialClient (+svn) diff with multiple commits"""
+    def _testDiffSimpleMultiple(self, do_commit, expected_diff_hash):
         self.client.get_repository_info()
 
-        self._hg_add_file_commit('foo.txt', FOO4, 'edit 4')
-        self._hg_add_file_commit('foo.txt', FOO5, 'edit 5')
-        self._hg_add_file_commit('foo.txt', FOO6, 'edit 6')
+        do_commit('foo.txt', FOO4, 'edit 4')
+        do_commit('foo.txt', FOO5, 'edit 5')
+        do_commit('foo.txt', FOO6, 'edit 6')
 
         revisions = self.client.parse_revision_spec([])
         result = self.client.diff(revisions)
         self.assertTrue(isinstance(result, dict))
         self.assertTrue('diff' in result)
-        self.assertEqual(md5(result['diff']).hexdigest(),
-                         '3d007394de3831d61e477cbcfe60ece8')
+        self.assertEqual(md5(result['diff']).hexdigest(), expected_diff_hash)
         self.assertEqual(result['parent_diff'], None)
 
-    def testDiffOfRevision(self):
-        """Testing MercurialClient (+svn) diff specifying a revision."""
+    def _testDiffOfRevision(self, do_commit, expected_diff_hash):
         self.client.get_repository_info()
 
-        self._hg_add_file_commit('foo.txt', FOO4, 'edit 4', branch='b')
-        self._hg_add_file_commit('foo.txt', FOO5, 'edit 5', branch='b')
-        self._hg_add_file_commit('foo.txt', FOO6, 'edit 6', branch='b')
-        self._hg_add_file_commit('foo.txt', FOO4, 'edit 7', branch='b')
+        do_commit('foo.txt', FOO4, 'edit 4', branch='b')
+        do_commit('foo.txt', FOO5, 'edit 5', branch='b')
+        do_commit('foo.txt', FOO6, 'edit 6', branch='b')
+        do_commit('foo.txt', FOO4, 'edit 7', branch='b')
 
         revisions = self.client.parse_revision_spec(['3'])
         result = self.client.diff(revisions)
         self.assertTrue(isinstance(result, dict))
         self.assertTrue('diff' in result)
-        self.assertEqual(md5(result['diff']).hexdigest(),
-                         '2eb0a5f2149232c43a1745d90949fcd5')
+        self.assertEqual(md5(result['diff']).hexdigest(), expected_diff_hash)
         self.assertEqual(result['parent_diff'], None)
 
 
@@ -1190,6 +1159,136 @@ def svn_version_set_hash(svn16_hash, svn17_hash):
 
         return wrapped
     return decorator
+
+
+class MercurialSubversionClientTests(MercurialTestBase, SvnWrapperMixin):
+    TESTSERVER = "http://127.0.0.1:8080"
+
+    def __init__(self, *args, **kwargs):
+        self._tmpbase = ''
+        self.clone_dir = ''
+        self.client = None
+        MercurialTestBase.__init__(self, *args, **kwargs)
+        SvnWrapperMixin.__init__(self)
+
+    def setUp(self):
+        super(MercurialSubversionClientTests, self).setUp()
+        self._hg_env = {'FOO': 'BAR'}
+
+        # Make sure hgsubversion is enabled.
+        #
+        # This will modify the .hgrc in the temp home directory created
+        # for these tests.
+        #
+        # The "hgsubversion =" tells Mercurial to check for hgsubversion
+        # in the default PYTHONPATH.
+        fp = open('%s/.hgrc' % os.environ['HOME'], 'w')
+        fp.write('[extensions]\n')
+        fp.write('hgsubversion =\n')
+        fp.close()
+
+        if not self._has_hgsubversion():
+            raise SkipTest('unable to use `hgsubversion` extension!  '
+                           'giving up!')
+
+        if not self._tmpbase:
+            self._tmpbase = self.create_tmp_dir()
+
+        self._create_svn_repo()
+        self._fire_up_svnserve()
+        self._fill_in_svn_repo()
+
+        try:
+            self._get_testing_clone()
+        except (OSError, IOError):
+            msg = 'could not clone from svn repo!  skipping...'
+            raise SkipTest(msg), None, sys.exc_info()[2]
+
+        self._spin_up_client()
+        self._stub_in_config_and_options()
+
+    def _has_hgsubversion(self):
+        output = self._run_hg(['svn', '--help'],
+                              ignore_errors=True, extra_ignore_errors=(255))
+
+        return not re.search("unknown command ['\"]svn['\"]", output, re.I)
+
+    def tearDown(self):
+        super(MercurialSubversionClientTests, self).tearDown()
+
+        os.kill(self._svnserve_pid, 9)
+
+    def _get_testing_clone(self):
+        self.clone_dir = os.path.join(self._tmpbase, 'checkout.hg')
+        self._run_hg([
+            'clone', 'svn://127.0.0.1:%s/svnrepo' % self._svnserve_port,
+            self.clone_dir,
+        ])
+
+    def _spin_up_client(self):
+        os.chdir(self.clone_dir)
+        self.client = MercurialClient(options=self.options)
+
+    def _stub_in_config_and_options(self):
+        self.user_config = {}
+        self.configs = []
+        self.client.user_config = self.user_config
+        self.client.configs = self.configs
+        self.options.parent_branch = None
+
+    def testGetRepositoryInfoSimple(self):
+        """Testing MercurialClient (+svn) get_repository_info, simple case"""
+        self._testGetRepositoryInfoSimple()
+
+    def testCalculateRepositoryInfo(self):
+        """
+        Testing MercurialClient (+svn) _calculate_hgsubversion_repository_info properly determines repository and base paths.
+        """
+        info = (
+            "URL: svn+ssh://testuser@svn.example.net/repo/trunk\n"
+            "Repository Root: svn+ssh://testuser@svn.example.net/repo\n"
+            "Repository UUID: bfddb570-5023-0410-9bc8-bc1659bf7c01\n"
+            "Revision: 9999\n"
+            "Node Kind: directory\n"
+            "Last Changed Author: user\n"
+            "Last Changed Rev: 9999\n"
+            "Last Changed Date: 2012-09-05 18:04:28 +0000 (Wed, 05 Sep 2012)")
+
+        repo_info = self.client._calculate_hgsubversion_repository_info(info)
+
+        self.assertEqual(repo_info.path, "svn+ssh://svn.example.net/repo")
+        self.assertEqual(repo_info.base_path, "/trunk")
+
+    def testScanForServerSimple(self):
+        """Testing MercurialClient (+svn) scan_for_server, simple case"""
+        self._testScanForServerSimple()
+
+    def testScanForServerReviewboardrc(self):
+        """Testing MercurialClient (+svn) scan_for_server in .reviewboardrc"""
+        self._testScanForServerReviewboardrc()
+
+    def testScanForServerProperty(self):
+        """Testing MercurialClient (+svn) scan_for_server in svn property"""
+        def update_hg():
+            self._run_hg(['pull'])
+            self._run_hg(['update', '-C'])
+
+        self._testScanForServerProperty(update_hg)
+
+    def testDiffSimple(self):
+        """Testing MercurialClient (+svn) diff, simple case"""
+        self._testDiffSimple(self._hg_add_file_commit,
+                             '2eb0a5f2149232c43a1745d90949fcd5')
+
+    def testDiffSimpleMultiple(self):
+        """Testing MercurialClient (+svn) diff with multiple commits"""
+        self._testDiffSimpleMultiple(self._hg_add_file_commit,
+                                     '3d007394de3831d61e477cbcfe60ece8')
+
+    def testDiffOfRevision(self):
+        """Testing MercurialClient (+svn) diff specifying a revision."""
+        self._testDiffOfRevision(self._hg_add_file_commit,
+                                 '2eb0a5f2149232c43a1745d90949fcd5')
 
 
 class SVNClientTests(SCMClientTests):
