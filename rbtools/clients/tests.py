@@ -972,8 +972,6 @@ class SvnWrapperMixin(object):
         return not re.search("unknown command ['\"]svn['\"]", output, re.I)
 
     def tearDown(self):
-        super(MercurialSubversionClientTests, self).tearDown()
-
         os.kill(self._svnserve_pid, 9)
 
     def _svn_add_file_commit(self, filename, data, msg, add_file=True):
@@ -1172,7 +1170,7 @@ class MercurialSubversionClientTests(MercurialTestBase, SvnWrapperMixin):
         SvnWrapperMixin.__init__(self)
 
     def setUp(self):
-        super(MercurialSubversionClientTests, self).setUp()
+        MercurialTestBase.setUp(self)
         self._hg_env = {'FOO': 'BAR'}
 
         # Make sure hgsubversion is enabled.
@@ -1191,32 +1189,13 @@ class MercurialSubversionClientTests(MercurialTestBase, SvnWrapperMixin):
             raise SkipTest('unable to use `hgsubversion` extension!  '
                            'giving up!')
 
-        if not self._tmpbase:
-            self._tmpbase = self.create_tmp_dir()
-
-        self._create_svn_repo()
-        self._fire_up_svnserve()
-        self._fill_in_svn_repo()
-
-        try:
-            self._get_testing_clone()
-        except (OSError, IOError):
-            msg = 'could not clone from svn repo!  skipping...'
-            raise SkipTest(msg), None, sys.exc_info()[2]
-
-        self._spin_up_client()
-        self._stub_in_config_and_options()
+        SvnWrapperMixin.setUp(self)
 
     def _has_hgsubversion(self):
         output = self._run_hg(['svn', '--help'],
                               ignore_errors=True, extra_ignore_errors=(255))
 
         return not re.search("unknown command ['\"]svn['\"]", output, re.I)
-
-    def tearDown(self):
-        super(MercurialSubversionClientTests, self).tearDown()
-
-        os.kill(self._svnserve_pid, 9)
 
     def _get_testing_clone(self):
         self.clone_dir = os.path.join(self._tmpbase, 'checkout.hg')
