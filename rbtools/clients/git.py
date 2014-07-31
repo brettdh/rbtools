@@ -389,7 +389,10 @@ class GitClient(SCMClient):
         return (svn_remote_url is not None)
 
     def _get_git_remote_server_info(self):
-        git_url = execute([self.git, "config", "--get", "remote.origin.url"])
+        git_url = execute([self.git, "config", "--get", "remote.origin.url"],
+                          ignore_errors=True)
+        if git_url is None:
+            return None, None
         git_url = git_url.strip()
         ssh_url_regexes = [
             '(?:git\+)?ssh://([A-Za-z0-9@:.]+?)(/.+)', # ssh://host.com/path/to/repo
