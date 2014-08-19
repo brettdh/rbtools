@@ -570,6 +570,8 @@ class ReviewBoardServer(object):
         """
         try:
             content_type, body = request.encode_multipart_formdata()
+            logging.debug('Request data: %r' % body)
+
             headers = request.headers
 
             if body:
