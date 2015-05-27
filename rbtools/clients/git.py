@@ -433,9 +433,9 @@ class GitClient(SCMClient):
 
         remote_cmd = "git config -f %s/subgit/config --get svn.url" % path
         if server:
-            svn_remote_url = execute(['ssh', 'git', server, remote_cmd], ignore_errors=True)
+            svn_remote_url = execute(['ssh', server, remote_cmd], ignore_errors=True, none_on_ignored_error=True)
         else:
-            svn_remote_url = execute(remote_cmd.split(), ignore_errors=True)
+            svn_remote_url = execute(remote_cmd.split(), ignore_errors=True, none_on_ignored_error=True)
         if not svn_remote_url:
             logging.error("Failed to retrieve SVN url from remote Subgit configuration")
             if server:
