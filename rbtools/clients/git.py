@@ -497,6 +497,8 @@ class GitClient(SCMClient):
             result = execute([self.git, 'notes', 'show', ref], **kwargs)
             if result is not None:
                 parent_branch = result.strip().split()[-1].replace("branches/", "")
+                if parent_branch == "trunk":
+                    parent_branch = "master"
                 branch_ref = execute([self.git, 'rev-parse', parent_branch], **kwargs)
                 if branch_ref is None:
                     logging.error("No git branch named {}".format(parent_branch))
