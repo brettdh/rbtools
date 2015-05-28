@@ -8,7 +8,6 @@ import os
 import shutil
 import urllib
 import urllib2
-from StringIO import StringIO
 from urlparse import urlparse, urlunparse
 
 try:

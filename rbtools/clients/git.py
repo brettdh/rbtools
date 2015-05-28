@@ -13,6 +13,7 @@ from rbtools.utils.checks import check_install
 from rbtools.utils.console import edit_text
 from rbtools.utils.process import die, execute
 
+
 # https://wiki.python.org/moin/PythonDecoratorLibrary
 # ignores kwargs
 def memoize(obj):
@@ -24,6 +25,7 @@ def memoize(obj):
             cache[args] = obj(*args, **kwargs)
         return cache[args]
     return memoizer
+
 
 class GitClient(SCMClient):
     """
@@ -157,7 +159,7 @@ class GitClient(SCMClient):
             # does not automatically append .cmd for things it finds in PATH.
             # If we're on Windows, and this works, save it for further use.
             if (sys.platform.startswith('win') and
-                check_install(['git.cmd', '--help'])):
+                    check_install(['git.cmd', '--help'])):
                 self.git = 'git.cmd'
             else:
                 logging.debug('Unable to execute "git --help" or "git.cmd '
@@ -185,7 +187,7 @@ class GitClient(SCMClient):
             # Top level might not work on old git version se we use git dir
             # to find it.
             if (git_top.startswith('fatal:') or not os.path.isdir(git_dir)
-                or git_top.startswith('cygdrive')):
+                    or git_top.startswith('cygdrive')):
                 git_top = git_dir
 
             os.chdir(os.path.abspath(git_top))
@@ -201,7 +203,8 @@ class GitClient(SCMClient):
         git_svn_dir = os.path.join(git_dir, 'svn')
 
         if (not getattr(self.options, 'repository_url', None) and
-            os.path.isdir(git_svn_dir) and len(os.listdir(git_svn_dir)) > 0):
+                os.path.isdir(git_svn_dir) and
+                len(os.listdir(git_svn_dir)) > 0):
             return self._get_git_svn_info()
         elif self._is_subgit_configured():
             return self._get_subgit_info()
@@ -226,7 +229,7 @@ class GitClient(SCMClient):
 
         # Nope, it's git then.
         # Check for a tracking branch and determine merge-base
-        self.upstream_branch, url = self._get_git_remote_tracking_info()
+        self.upstream_branch, url = self._get_git_remote_tracking_info(git_dir)
         if url:
             self.type = "git"
             return RepositoryInfo(path=url, base_path='',
@@ -234,7 +237,7 @@ class GitClient(SCMClient):
 
         return None
 
-    def _get_git_remote_tracking_info(self):
+    def _get_git_remote_tracking_info(self, git_dir):
         upstream_branch = ''
         if self.head_ref:
             short_head = self._strip_heads_prefix(self.head_ref)
@@ -272,12 +275,12 @@ class GitClient(SCMClient):
                 # There is no remote, so skip this part of upstream_branch.
                 upstream_branch = upstream_branch.split('/')[-1]
 
-        logging.debug("Got upstream branch, url: %s, %s" % (upstream_branch, url))
+        logging.debug("Got upstream branch, url: %s, %s",
+                      upstream_branch, url)
         return upstream_branch, url
 
     def _get_git_svn_info(self):
-        data = execute([self.git, "svn", "rebase", "-n"],
-                        ignore_errors=True)
+        data = execute([self.git, "svn", "rebase", "-n"], ignore_errors=True)
         m = re.search(r'^Remote Branch:\s*(.+)$', data,
                       re.M)
         if m:
@@ -322,7 +325,7 @@ class GitClient(SCMClient):
             # the user a hint about what to do next.
             version = execute([self.git, "svn", "--version"],
                               ignore_errors=True)
-            version_parts = re.search('version (\d+)\.(\d+)\.(\d+)',
+            version_parts = re.search(r'version (\d+)\.(\d+)\.(\d+)',
                                       version)
             svn_remote = execute(
                 [self.git, "config", "--get", "svn-remote.svn.url"],
@@ -348,8 +351,11 @@ class GitClient(SCMClient):
             return None, None
         git_url = git_url.strip()
         ssh_url_regexes = [
-            '(?:git\+)?ssh://([A-Za-z0-9@:.]+?)(/.+)', # ssh://host.com/path/to/repo
-            '([A-Za-z0-9@:.]+):(.+)', # host.com:path/to/repo
+            # ssh://host.com/path/to/repo
+            r'(?:git\+)?ssh://([A-Za-z0-9@:.]+?)(/.+)',
+
+            # host.com:path/to/repo
+            r'([A-Za-z0-9@:.]+):(.+)',
         ]
         logging.debug("Parsing remote git URL: %s" % git_url)
 
@@ -374,7 +380,9 @@ class GitClient(SCMClient):
     def _get_subgit_svn_url(self):
         svn_url_key = "rbtools.subgit.svn_url"
         cmd = "git config --get {}".format(svn_url_key)
-        config_svn_url = execute(cmd.split(), ignore_errors=True, none_on_ignored_error=True)
+        config_svn_url = execute(cmd.split(),
+                                 ignore_errors=True,
+                                 none_on_ignored_error=True)
         if config_svn_url is not None:
             return config_svn_url.split()
 
@@ -384,11 +392,16 @@ class GitClient(SCMClient):
 
         remote_cmd = "git config -f %s/subgit/config --get svn.url" % path
         if server:
-            svn_remote_url = execute(['ssh', server, remote_cmd], ignore_errors=True, none_on_ignored_error=True)
+            svn_remote_url = execute(['ssh', server, remote_cmd],
+                                     ignore_errors=True,
+                                     none_on_ignored_error=True)
         else:
-            svn_remote_url = execute(remote_cmd.split(), ignore_errors=True, none_on_ignored_error=True)
+            svn_remote_url = execute(remote_cmd.split(),
+                                     ignore_errors=True,
+                                     none_on_ignored_error=True)
         if not svn_remote_url:
-            logging.error("Failed to retrieve SVN url from remote Subgit configuration")
+            logging.error("Failed to retrieve SVN url from "
+                          "remote Subgit configuration")
             if server:
                 logging.error("Do you have shell access to {}?".format(server))
             logging.error("You may wish to specify the URL manually:")
@@ -396,7 +409,8 @@ class GitClient(SCMClient):
             return None
 
         if server:
-            svn_remote_url = svn_remote_url.replace("file://", "svn+ssh://%s" % server)
+            svn_remote_url = \
+                svn_remote_url.replace("file://", "svn+ssh://%s" % server)
         svn_remote_url = svn_remote_url.strip()
         logging.debug("Got remote SVN url from Subgit: %s" % svn_remote_url)
         return svn_remote_url
@@ -433,7 +447,8 @@ class GitClient(SCMClient):
             'ignore_errors': True,
             'none_on_ignored_error': True
         }
-        cmd = [self.git] + "fetch origin +refs/svn/map:refs/notes/subgit".split()
+        cmd = [self.git, "fetch", "origin",
+               "+refs/svn/map:refs/notes/subgit"]
         if execute(cmd, **kwargs) is None:
             logging.error("Failed to fetch subgit notes")
             return None
@@ -447,16 +462,18 @@ class GitClient(SCMClient):
             ref = result.strip()
             result = execute([self.git, 'notes', 'show', ref], **kwargs)
             if result is not None:
-                parent_branch = result.strip().split()[-1].replace("branches/", "")
+                parent_branch = \
+                    result.strip().split()[-1].replace("branches/", "")
                 if parent_branch == "trunk":
                     parent_branch = "master"
-                branch_ref = execute([self.git, 'rev-parse', parent_branch], **kwargs)
+                branch_ref = execute([self.git, 'rev-parse', parent_branch],
+                                     **kwargs)
                 if branch_ref is None:
-                    logging.error("No git branch named {}".format(parent_branch))
+                    logging.error("No git branch named %s", parent_branch)
                     return None
                 if branch_ref.strip() != ref:
-                    logging.warning("Parent branch {}".format(parent_branch) +
-                                    " has diverged from branch point")
+                    msg = "Parent branch %s has diverged from branch point"
+                    logging.warning(msg, parent_branch)
                 return parent_branch
 
             ref = ref + "^"
@@ -475,9 +492,10 @@ class GitClient(SCMClient):
                 git_branch = self.options.parent_branch
                 svn_branch = self._get_subgit_tracking_branch(git_branch)
             if not svn_branch:
-                # Here we just grab the name of the svn branch that we git-branched from.
-                # git-svn seems to do something similar, where 'git svn rebase -n' shows
-                # the "Remote Branch" as the svn branch, even when we've brached off in git-land.
+                # Here we just grab the name of the svn branch that we
+                # git-branched from.  git-svn seems to do something similar,
+                # where 'git svn rebase -n' shows the "Remote Branch" as the
+                # svn branch, even when we've brached off in git-land.
                 git_branch = self._get_subgit_parent_branch('HEAD')
                 if not git_branch:
                     die('Failed to determine Subgit/SVN tracking branch')
@@ -637,7 +655,7 @@ class GitClient(SCMClient):
                         '--ignore-submodules', '--no-renames', rev_range]
 
             if (self.capabilities is not None and
-                self.capabilities.has_capability('diffs', 'moved_files')):
+                    self.capabilities.has_capability('diffs', 'moved_files')):
                 diff_cmd.append('-M')
         else:
             return None
@@ -672,7 +690,8 @@ class GitClient(SCMClient):
             elif none_on_error:
                 return None
             else:
-                logging.error("subgit configured, but couldn't find svn revision for git ref")
+                logging.error("subgit configured, but couldn't find "
+                              "svn revision for git ref")
                 logging.error("You may need to add this line to .git/config:")
                 logging.error("-----------")
                 logging.error("[remote \"origin\"]")
@@ -750,7 +769,8 @@ class GitClient(SCMClient):
         log = execute([self.git, 'log', merge_base], ignore_errors=True)
 
         for line in log:
-            m = re.search(r'[rd]epo.-paths = "(.+)": change = (\d+).*\]', log, re.M)
+            m = re.search(r'[rd]epo.-paths = "(.+)": change = (\d+).*\]',
+                          log, re.M)
 
             if m:
                 base_path = m.group(1).strip()
