@@ -897,7 +897,12 @@ class SvnWrapperMixin(object):
             self._svn_add_file_commit('foo.txt', data, 'foo commit %s' % i,
                                       add_file=(i == 0))
 
-    def _testGetRepositoryInfoSimple(self, base_path):
+    # The below _test_* methods can be called from subclasses to run
+    # the specified tests against the VCS client that the subclass
+    # instantiates in self.client.
+
+    def _test_get_repository_info_simple(self, base_path):
+        """Run test for <client> (+svn) get_repository_info, simple case"""
         ri = self.client.get_repository_info()
 
         self.assertEqual('svn', self.client._type)
@@ -905,13 +910,15 @@ class SvnWrapperMixin(object):
         self.assertEqual('svn://127.0.0.1:%s/svnrepo' % self._svnserve_port,
                          ri.path)
 
-    def _testScanForServerSimple(self):
+    def _test_scan_for_server_simple(self):
+        """Run test for <client> (+svn) scan_for_server, simple case"""
         ri = self.client.get_repository_info()
         server = self.client.scan_for_server(ri)
 
         self.assertTrue(server is None)
 
-    def _testScanForServerReviewboardrc(self):
+    def _test_scan_for_server_reviewboardrc(self):
+        """Run test for <client> (+svn) scan_for_server in .reviewboardrc"""
         rc_filename = os.path.join(self.clone_dir, '.reviewboardrc')
         rc = open(rc_filename, 'w')
         rc.write('REVIEWBOARD_URL = "%s"' % self.TESTSERVER)
@@ -923,7 +930,8 @@ class SvnWrapperMixin(object):
 
         self.assertEqual(self.TESTSERVER, server)
 
-    def _testScanForServerProperty(self, update):
+    def _test_scan_for_server_property(self, update):
+        """Run test for  <client> (+svn) scan_for_server in svn property"""
         os.chdir(self.svn_checkout)
         execute(['svn', 'update'])
         execute(['svn', 'propset', 'reviewboard:url', self.TESTSERVER,
@@ -937,7 +945,8 @@ class SvnWrapperMixin(object):
 
         self.assertEqual(self.TESTSERVER, self.client.scan_for_server(ri))
 
-    def _testDiffSimple(self, do_commit, expected_diff_hash):
+    def _test_diff_simple(self, do_commit, expected_diff_hash):
+        """Run test for <client> (+svn) diff, simple case"""
         self.client.get_repository_info()
 
         do_commit('foo.txt', FOO4, 'edit 4')
@@ -950,7 +959,8 @@ class SvnWrapperMixin(object):
                          expected_diff_hash)
         self.assertEqual(result['parent_diff'], None)
 
-    def _testDiffSimpleMultiple(self, do_commit, expected_diff_hash):
+    def _test_diff_simple_multiple(self, do_commit, expected_diff_hash):
+        """Run test for <client> (+svn) diff with multiple commits"""
         self.client.get_repository_info()
 
         do_commit('foo.txt', FOO4, 'edit 4')
@@ -1023,7 +1033,7 @@ class MercurialSubversionClientTests(MercurialTestBase, SvnWrapperMixin):
 
     def testGetRepositoryInfoSimple(self):
         """Testing MercurialClient (+svn) get_repository_info, simple case"""
-        self._testGetRepositoryInfoSimple('/trunk')
+        self._test_get_repository_info_simple('/trunk')
 
     def testCalculateRepositoryInfo(self):
         """
@@ -1046,11 +1056,11 @@ class MercurialSubversionClientTests(MercurialTestBase, SvnWrapperMixin):
 
     def testScanForServerSimple(self):
         """Testing MercurialClient (+svn) scan_for_server, simple case"""
-        self._testScanForServerSimple()
+        self._test_scan_for_server_simple()
 
     def testScanForServerReviewboardrc(self):
         """Testing MercurialClient (+svn) scan_for_server in .reviewboardrc"""
-        self._testScanForServerReviewboardrc()
+        self._test_scan_for_server_reviewboardrc()
 
     def testScanForServerProperty(self):
         """Testing MercurialClient (+svn) scan_for_server in svn property"""
@@ -1058,16 +1068,16 @@ class MercurialSubversionClientTests(MercurialTestBase, SvnWrapperMixin):
             self._run_hg(['pull'])
             self._run_hg(['update', '-C'])
 
-        self._testScanForServerProperty(update_hg)
+        self._test_scan_for_server_property(update_hg)
 
     def testDiffSimple(self):
         """Testing MercurialClient (+svn) diff, simple case"""
-        self._testDiffSimple(self._hg_add_file_commit,
+        self._test_diff_simple(self._hg_add_file_commit,
                              '2eb0a5f2149232c43a1745d90949fcd5')
 
     def testDiffSimpleMultiple(self):
         """Testing MercurialClient (+svn) diff with multiple commits"""
-        self._testDiffSimpleMultiple(self._hg_add_file_commit,
+        self._test_diff_simple_multiple(self._hg_add_file_commit,
                                      '3d007394de3831d61e477cbcfe60ece8')
 
     def testDiffOfRevision(self):
@@ -1125,26 +1135,26 @@ class GitSubversionClientTests(GitTestBase, SvnWrapperMixin):
 
     def testGetRepositoryInfoSimple(self):
         """Testing GitClient (+svn) get_repository_info, simple case"""
-        self._testGetRepositoryInfoSimple('/')
+        self._test_get_repository_info_simple('/')
 
     def testScanForServerSimple(self):
         """Testing GitClient (+svn) scan_for_server, simple case"""
-        self._testScanForServerSimple()
+        self._test_scan_for_server_simple()
 
     def testScanForServerReviewboardrc(self):
         """Testing GitClient (+svn) scan_for_server in .reviewboardrc"""
-        self._testScanForServerReviewboardrc()
+        self._test_scan_for_server_reviewboardrc()
 
     def testDiffSimple(self):
         """Testing GitClient (+svn) diff, simple case"""
         raise SkipTest("different hash between git svn wrappers - whatever")
-        self._testDiffSimple(self._git_add_file_commit,
+        self._test_diff_simple(self._git_add_file_commit,
                              '2eb0a5f2149232c43a1745d90949fcd5')
 
     def testDiffSimpleMultiple(self):
         """Testing GitClient (+svn) diff with multiple commits"""
         raise SkipTest("different hash between git svn wrappers - whatever")
-        self._testDiffSimpleMultiple(self._git_add_file_commit,
+        self._test_diff_simple_multiple(self._git_add_file_commit,
                                      '3d007394de3831d61e477cbcfe60ece8')
 
 

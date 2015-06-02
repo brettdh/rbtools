@@ -8,6 +8,7 @@ import os
 import shutil
 import urllib
 import urllib2
+from StringIO import StringIO
 from urlparse import urlparse, urlunparse
 
 try:
@@ -441,7 +442,7 @@ class ReviewBoardServer(object):
         """Reset the user information"""
         self.preset_auth_handler.reset(username, password)
 
-    def _process_error(self, request_body, http_status, data):
+    def process_error(self, http_status, data):
         """Processes an error, raising an APIError with the information."""
         try:
             rsp = json_loads(data)
@@ -466,8 +467,6 @@ class ReviewBoardServer(object):
         """
         try:
             content_type, body = request.encode_multipart_formdata()
-            logging.debug('Request data: %r' % body)
-
             headers = request.headers
 
             if body:
@@ -482,7 +481,7 @@ class ReviewBoardServer(object):
                         request.method)
             rsp = urllib2.urlopen(r)
         except urllib2.HTTPError, e:
-            self._process_error(body, e.code, e.read())
+            self.process_error(e.code, e.read())
         except urllib2.URLError, e:
             raise ServerInterfaceError("%s" % e.reason)
 
