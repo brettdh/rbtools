@@ -47,11 +47,3 @@ class EmptyChangeError(Exception):
     def __init__(self):
         super(EmptyChangeError, self).__init__(
             "Couldn't find any affected files for this change.")
-
-
-class ExternalClientError(Exception):
-    """
-    An error that indicates a failure in the external VCS client
-    caused the rbt operation to fail.
-    """
-    pass
