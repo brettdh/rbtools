@@ -44,9 +44,9 @@ class GitTestBase(SCMClientTests):
                        ignore_errors=False, extra_ignore_errors=(),
                        translate_newlines=True)
 
-    def _git_add_file_commit(self, file, data, msg):
+    def _git_add_file_commit(self, filename, data, msg):
         """Add a file to a git repository with the content of data and commit with msg."""
-        foo = open(file, 'w')
+        foo = open(filename, 'w')
         foo.write(data)
         foo.close()
         self._run_git(['add', filename])
@@ -944,10 +944,6 @@ class SvnWrapperMixin(object):
             if not is_exe_in_path(exe):
                 raise SkipTest('missing svn stuff!  giving up!')
 
-        if not self._has_hgsubversion():
-            raise SkipTest('unable to use `hgsubversion` extension!  '
-                           'giving up!')
-
         if not self._tmpbase:
             self._tmpbase = self.create_tmp_dir()
 
@@ -963,15 +959,6 @@ class SvnWrapperMixin(object):
 
         self._spin_up_client()
         self._stub_in_config_and_options()
-
-    def _has_hgsubversion(self):
-        try:
-            output = self._run_hg(['svn', '--help'], ignore_errors=True,
-                                  extra_ignore_errors=(255))
-        except OSError:
-            return False
-
-        return not re.search("unknown command ['\"]svn['\"]", output, re.I)
 
     def tearDown(self):
         os.kill(self._svnserve_pid, 9)
@@ -1047,23 +1034,6 @@ class SvnWrapperMixin(object):
         self.assertEqual(base_path, ri.base_path)
         self.assertEqual('svn://127.0.0.1:%s/svnrepo' % self._svnserve_port,
                          ri.path)
-
-    def testCalculateRepositoryInfo(self):
-        """Testing MercurialClient (+svn) _calculate_hgsubversion_repository_info properly determines repository and base paths."""
-        info = (
-            "URL: svn+ssh://testuser@svn.example.net/repo/trunk\n"
-            "Repository Root: svn+ssh://testuser@svn.example.net/repo\n"
-            "Repository UUID: bfddb570-5023-0410-9bc8-bc1659bf7c01\n"
-            "Revision: 9999\n"
-            "Node Kind: directory\n"
-            "Last Changed Author: user\n"
-            "Last Changed Rev: 9999\n"
-            "Last Changed Date: 2012-09-05 18:04:28 +0000 (Wed, 05 Sep 2012)")
-
-        repo_info = self.client._calculate_hgsubversion_repository_info(info)
-
-        self.assertEqual(repo_info.path, "svn+ssh://svn.example.net/repo")
-        self.assertEqual(repo_info.base_path, "/trunk")
 
     def _testScanForServerSimple(self):
         ri = self.client.get_repository_info()
